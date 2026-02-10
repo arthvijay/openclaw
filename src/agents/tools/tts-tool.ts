@@ -11,6 +11,12 @@ const TtsToolSchema = Type.Object({
   channel: Type.Optional(
     Type.String({ description: "Optional channel id to pick output format (e.g. telegram)." }),
   ),
+  mode: Type.Optional(
+    Type.Union([Type.Literal("url"), Type.Literal("push")], {
+      description: "Output mode. 'url' returns a path (default), 'push' streams to the client.",
+    }),
+  ),
+  clientId: Type.Optional(Type.String({ description: "Target client ID for push mode." })),
 });
 
 export function createTtsTool(opts?: {
@@ -21,12 +27,15 @@ export function createTtsTool(opts?: {
     label: "TTS",
     name: "tts",
     description:
-      "Convert text to speech and return a MEDIA: path. Use when the user requests audio or TTS is enabled. Copy the MEDIA line exactly.",
+      "Convert text to speech. Can return a file path or push audio directly to a connected client.",
     parameters: TtsToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
       const text = readStringParam(params, "text", { required: true });
       const channel = readStringParam(params, "channel");
+      const mode = readStringParam(params, "mode"); // url or push
+      const targetClientId = readStringParam(params, "clientId");
+
       const cfg = opts?.config ?? loadConfig();
       const result = await textToSpeech({
         text,
@@ -34,27 +43,44 @@ export function createTtsTool(opts?: {
         channel: channel ?? opts?.agentChannel,
       });
 
-      if (result.success && result.audioPath) {
-        const lines: string[] = [];
-        // Tag Telegram Opus output as a voice bubble instead of a file attachment.
-        if (result.voiceCompatible) {
-          lines.push("[[audio_as_voice]]");
-        }
-        lines.push(`MEDIA:${result.audioPath}`);
+      if (!result.success || !result.audioPath) {
         return {
-          content: [{ type: "text", text: lines.join("\n") }],
-          details: { audioPath: result.audioPath, provider: result.provider },
+          content: [{ type: "text", text: result.error ?? "TTS conversion failed" }],
+          details: { error: result.error },
         };
       }
 
+      if (mode === "push") {
+        if (!targetClientId) {
+          return {
+            content: [{ type: "text", text: "Error: clientId required for push mode" }],
+            details: { error: "missing_client_id" },
+          };
+        }
+        // Push to client
+        // Dynamic import to avoid cycles
+        const { audioStreamChannel } = await import("../../channels/audio-stream.js");
+        // We need to read the file into specific buffer to push
+        const fs = await import("node:fs/promises");
+        const buffer = await fs.readFile(result.audioPath);
+
+        audioStreamChannel.pushAudio(targetClientId, buffer);
+
+        return {
+          content: [{ type: "text", text: `Audio pushed to client ${targetClientId}` }],
+          details: { pushed: true, bytes: buffer.length },
+        };
+      }
+
+      const lines: string[] = [];
+      // Tag Telegram Opus output as a voice bubble instead of a file attachment.
+      if (result.voiceCompatible) {
+        lines.push("[[audio_as_voice]]");
+      }
+      lines.push(`MEDIA:${result.audioPath}`);
       return {
-        content: [
-          {
-            type: "text",
-            text: result.error ?? "TTS conversion failed",
-          },
-        ],
-        details: { error: result.error },
+        content: [{ type: "text", text: lines.join("\n") }],
+        details: { audioPath: result.audioPath, provider: result.provider },
       };
     },
   };

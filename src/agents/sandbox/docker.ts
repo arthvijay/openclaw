@@ -151,6 +151,9 @@ export function buildSandboxCreateArgs(params: {
   }
   if (params.cfg.network) {
     args.push("--network", params.cfg.network);
+  } else {
+    // SECURITY: Default to no network access if not explicitly configured.
+    args.push("--network", "none");
   }
   if (params.cfg.user) {
     args.push("--user", params.cfg.user);

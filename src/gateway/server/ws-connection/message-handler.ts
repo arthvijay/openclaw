@@ -235,6 +235,24 @@ export function attachGatewayWsMessageHandler(params: {
     if (isClosed()) {
       return;
     }
+
+    const client = getClient();
+
+    // Quick check for binary audio frames
+    const isBuffer = Buffer.isBuffer(data) || data instanceof ArrayBuffer || Array.isArray(data);
+    if (client && isBuffer) {
+      // For now, treat all binary frames from authenticated clients as audio stream checks
+      // We can refine this with a magic byte later if needed
+      const buf = Array.isArray(data) ? Buffer.concat(data) : Buffer.from(data as any);
+      // Optimization: only process if it looks like PCM (non-empty)
+      if (buf.length > 0) {
+        // Dynamically import to avoid circular dep issues during init if any
+        const { audioStreamChannel } = await import("../../../channels/audio-stream.js");
+        audioStreamChannel.handleAudioFrame(client.connect.client.id, buf);
+        return;
+      }
+    }
+
     const text = rawDataToString(data);
     try {
       const parsed = JSON.parse(text);
@@ -886,6 +904,12 @@ export function attachGatewayWsMessageHandler(params: {
         };
         setClient(nextClient);
         setHandshakeState("connected");
+
+        // Register for audio streaming
+        import("../../../channels/audio-stream.js").then(({ audioStreamChannel }) => {
+          audioStreamChannel.registerConnection(clientId, socket);
+        });
+
         if (role === "node") {
           const context = buildRequestContext();
           const nodeSession = context.nodeRegistry.register(nextClient, {
