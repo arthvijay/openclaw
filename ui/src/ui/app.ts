@@ -27,6 +27,8 @@ import type {
   SkillStatusReport,
   StatusSummary,
   NostrProfile,
+  GovernanceLog,
+  ModelInventory,
 } from "./types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import {
@@ -78,6 +80,7 @@ import {
 } from "./app-tool-stream.ts";
 import { resolveInjectedAssistantIdentity } from "./assistant-identity.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
+import { loadGovernanceInventory, loadGovernanceLogs } from "./controllers/governance.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
 
@@ -324,6 +327,16 @@ export class OpenClawApp extends LitElement {
   @state() logsMaxBytes = 250_000;
   @state() logsAtBottom = true;
 
+  @state() logsAtBottom = true;
+
+  @state() governanceInventoryLoading = false;
+  @state() governanceInventory: ModelInventory | null = null;
+  @state() governanceInventoryError: string | null = null;
+  @state() governanceLogsLoading = false;
+  @state() governanceLogs: GovernanceLog[] = [];
+  @state() governanceLogsError: string | null = null;
+  @state() governanceActiveTab: "inventory" | "logs" = "inventory";
+
   client: GatewayBrowserClient | null = null;
   private chatScrollFrame: number | null = null;
   private chatScrollTimeout: number | null = null;
@@ -563,6 +576,23 @@ export class OpenClawApp extends LitElement {
     const newRatio = Math.max(0.4, Math.min(0.7, ratio));
     this.splitRatio = newRatio;
     this.applySettings({ ...this.settings, splitRatio: newRatio });
+  }
+
+  async loadGovernanceInventory() {
+    await loadGovernanceInventory(this as unknown as AppViewState);
+  }
+
+  async loadGovernanceLogs() {
+    await loadGovernanceLogs(this as unknown as AppViewState);
+  }
+
+  handleGovernanceTabChange(tab: "inventory" | "logs") {
+    this.governanceActiveTab = tab;
+    if (tab === "inventory") {
+      this.loadGovernanceInventory();
+    } else {
+      this.loadGovernanceLogs();
+    }
   }
 
   render() {

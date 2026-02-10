@@ -396,6 +396,43 @@ export async function runEmbeddedPiAgent(
           const prompt =
             provider === "anthropic" ? scrubAnthropicRefusalMagic(params.prompt) : params.prompt;
 
+          // Governance: Validate Input
+          const { __governanceService } = await import("../pi-embedded-runner.js");
+          if (__governanceService) {
+            const validationContext = {
+              sessionId: params.sessionId,
+              provider,
+              modelId,
+              agentId: workspaceResolution.agentId,
+            };
+            const validation = await __governanceService.validateInput(prompt, validationContext);
+            if (!validation.allowed) {
+              return {
+                payloads: [
+                  {
+                    text: `Input blocked by governance policy: ${validation.reason || "Policy violation"}`,
+                    isError: true,
+                  },
+                ],
+                meta: {
+                  durationMs: Date.now() - started,
+                  agentMeta: {
+                    sessionId: params.sessionId,
+                    provider,
+                    model: modelId,
+                  },
+                  error: {
+                    kind: "governance_block",
+                    message: validation.reason || "Policy violation",
+                  },
+                },
+              };
+            }
+            if (validation.riskAssessment) {
+              log.warn(`[governance] Input flagged: ${JSON.stringify(validation.riskAssessment)}`);
+            }
+          }
+
           const attempt = await runEmbeddedAttempt({
             sessionId: params.sessionId,
             sessionKey: params.sessionKey,
@@ -797,6 +834,68 @@ export async function runEmbeddedPiAgent(
           }
 
           const usage = toNormalizedUsage(usageAccumulator);
+
+          // Governance: Validate Output (Last Assistant Message)
+          if (lastAssistant && lastAssistant.content) {
+            const { __governanceService } = await import("../pi-embedded-runner.js");
+            if (__governanceService) {
+              const assistantText =
+                typeof lastAssistant.content === "string"
+                  ? lastAssistant.content
+                  : Array.isArray(lastAssistant.content)
+                    ? lastAssistant.content.map((c) => (c.type === "text" ? c.text : "")).join(" ")
+                    : "";
+
+              if (assistantText) {
+                const validationContext = {
+                  sessionId: params.sessionId,
+                  provider,
+                  modelId,
+                  agentId: workspaceResolution.agentId,
+                  usage,
+                };
+                const validation = await __governanceService.validateOutput(
+                  assistantText,
+                  validationContext,
+                );
+                if (!validation.allowed) {
+                  return {
+                    payloads: [
+                      {
+                        text: `Output blocked by governance policy: ${validation.reason || "Policy violation"}`,
+                        isError: true,
+                      },
+                    ],
+                    meta: {
+                      durationMs: Date.now() - started,
+                      agentMeta: {
+                        sessionId: sessionIdUsed,
+                        provider,
+                        model: model.id,
+                      },
+                      error: {
+                        kind: "governance_block",
+                        message: validation.reason || "Policy violation",
+                      },
+                    },
+                  };
+                }
+                if (validation.modifications) {
+                  log.info(`[governance] Output redacted/modified by policy.`);
+                }
+
+                // Track usage
+                if (usage?.total) {
+                  await __governanceService.trackModelUsage(
+                    modelId,
+                    usage.total,
+                    validationContext,
+                  );
+                }
+              }
+            }
+          }
+
           const agentMeta: EmbeddedPiAgentMeta = {
             sessionId: sessionIdUsed,
             provider: lastAssistant?.provider ?? provider,

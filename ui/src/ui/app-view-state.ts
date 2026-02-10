@@ -29,7 +29,10 @@ import type {
   SessionUsageTimeSeries,
   SessionsListResult,
   SkillStatusReport,
+  SkillStatusReport,
   StatusSummary,
+  GovernanceLog,
+  ModelInventory,
 } from "./types.ts";
 import type { ChatAttachment, ChatQueueItem, CronFormState } from "./ui-types.ts";
 import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
@@ -219,6 +222,14 @@ export type AppViewState = {
   logsLimit: number;
   logsMaxBytes: number;
   logsAtBottom: boolean;
+  governanceInventoryLoading: boolean;
+  governanceInventory: ModelInventory | null;
+  governanceInventoryError: string | null;
+  governanceLogsLoading: boolean;
+  governanceLogs: GovernanceLog[];
+  governanceLogsError: string | null;
+  governanceActiveTab: "inventory" | "logs";
+
   client: GatewayBrowserClient | null;
   refreshSessionsAfterChat: Set<string>;
   connect: () => void;
@@ -282,4 +293,7 @@ export type AppViewState = {
   handleOpenSidebar: (content: string) => void;
   handleCloseSidebar: () => void;
   handleSplitRatioChange: (ratio: number) => void;
+  loadGovernanceInventory: () => Promise<void>;
+  loadGovernanceLogs: () => Promise<void>;
+  handleGovernanceTabChange: (tab: "inventory" | "logs") => void;
 };

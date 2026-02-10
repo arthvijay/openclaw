@@ -5,6 +5,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { ControlUiRootState } from "./control-ui.js";
 import type { startBrowserControlServerIfEnabled } from "./server-browser.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { setGovernanceService } from "../agents/pi-embedded-runner.js";
 import { registerSkillsChangeListener } from "../agents/skills/refresh.js";
 import { initSubagentRegistry } from "../agents/subagent-registry.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
@@ -19,6 +20,7 @@ import {
   writeConfigFile,
 } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
+import { GovernanceService } from "../governance/service.js";
 import { clearAgentRunContext, onAgentEvent } from "../infra/agent-events.js";
 import {
   ensureControlUiAssetsBuilt,
@@ -226,6 +228,11 @@ export async function startGatewayServer(
   initSubagentRegistry();
   const defaultAgentId = resolveDefaultAgentId(cfgAtStart);
   const defaultWorkspaceDir = resolveAgentWorkspaceDir(cfgAtStart, defaultAgentId);
+
+  const governanceService = new GovernanceService(defaultWorkspaceDir);
+  await governanceService.init();
+  setGovernanceService(governanceService);
+
   const baseMethods = listGatewayMethods();
   const { pluginRegistry, gatewayMethods: baseGatewayMethods } = loadGatewayPlugins({
     cfg: cfgAtStart,
@@ -350,6 +357,7 @@ export async function startGatewayServer(
     log,
     logHooks,
     logPlugins,
+    governanceService,
   });
   let bonjourStop: (() => Promise<void>) | null = null;
   const nodeRegistry = new NodeRegistry();
@@ -485,6 +493,13 @@ export async function startGatewayServer(
     extraHandlers: {
       ...pluginRegistry.gatewayHandlers,
       ...execApprovalHandlers,
+      "governance.inventory.list": async () => {
+        return governanceService.getInventory();
+      },
+      "governance.logs.list": async () => {
+        // Default to last 100 logs
+        return governanceService.getLogs({}, 100);
+      },
     },
     broadcast,
     context: {

@@ -227,6 +227,31 @@ export type IMessageStatus = {
   lastProbeAt?: number | null;
 };
 
+export interface GovernanceLog {
+  id: string;
+  timestamp: string;
+  eventType: string;
+  modelId?: string;
+  details: any;
+}
+
+export interface ModelInventory {
+  models: {
+    id: string;
+    name: string;
+    provider: string;
+    version?: string;
+    capabilities?: string[];
+    trainingDataLineage?: string;
+    deploymentDate?: string;
+  }[];
+  ensembles?: {
+    id: string;
+    description: string;
+    modelIds: string[];
+  }[];
+}
+
 export type NostrProfile = {
   name?: string | null;
   displayName?: string | null;

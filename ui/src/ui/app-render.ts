@@ -70,6 +70,7 @@ import { renderCron } from "./views/cron.ts";
 import { renderDebug } from "./views/debug.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
+import { renderGovernance } from "./views/governance.ts";
 import { renderInstances } from "./views/instances.ts";
 import { renderLogs } from "./views/logs.ts";
 import { renderNodes } from "./views/nodes.ts";
@@ -943,15 +944,60 @@ export function renderApp(state: AppViewState) {
                     }
                     return;
                   }
-                  const next = primary
-                    ? { primary, fallbacks: normalized }
-                    : { fallbacks: normalized };
+                  const next = primary;
                   updateConfigFormValue(state, basePath, next);
                 },
               })
             : nothing
         }
 
+        ${
+          state.tab === "cron"
+            ? renderCron({
+                basePath: state.basePath,
+                loading: state.cronLoading,
+                status: state.cronStatus,
+                jobs: state.cronJobs,
+                error: state.cronError,
+                busy: state.cronBusy,
+                form: state.cronForm,
+                channels: state.channelsSnapshot?.channels
+                  ? Object.keys(state.channelsSnapshot.channels)
+                  : [],
+                channelLabels: state.channelsSnapshot?.channelLabels,
+                channelMeta: state.channelsSnapshot?.channelMeta,
+                runsJobId: state.cronRunsJobId,
+                runs: state.cronRuns,
+                onFormChange: (patch) => {
+                  Object.entries(patch).forEach(([key, value]) => {
+                    state.handleCronFormUpdate(key, value);
+                  });
+                },
+                onRefresh: state.loadCron,
+                onAdd: state.handleCronAdd,
+                onToggle: (job, enabled) => state.handleCronToggle(job.id, enabled),
+                onRun: (job) => state.handleCronRun(job.id),
+                onRemove: (job) => state.handleCronRemove(job.id),
+                onLoadRuns: state.handleCronRunsLoad,
+              })
+            : nothing
+        }
+        ${
+          state.tab === "governance"
+            ? renderGovernance({
+                inventoryLoading: state.governanceInventoryLoading,
+                inventory: state.governanceInventory,
+                inventoryError: state.governanceInventoryError,
+                logsLoading: state.governanceLogsLoading,
+                logs: state.governanceLogs,
+                logsError: state.governanceLogsError,
+                activeTab: state.governanceActiveTab,
+                onTabChange: state.handleGovernanceTabChange,
+                onRefreshInventory: state.loadGovernanceInventory,
+                onRefreshLogs: state.loadGovernanceLogs,
+              })
+            : nothing
+        }
         ${
           state.tab === "skills"
             ? renderSkills({

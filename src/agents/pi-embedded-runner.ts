@@ -25,3 +25,11 @@ export type {
   EmbeddedPiRunMeta,
   EmbeddedPiRunResult,
 } from "./pi-embedded-runner/types.js";
+
+export let __governanceService: import("../governance/service.js").GovernanceService | undefined;
+
+export function setGovernanceService(
+  service: import("../governance/service.js").GovernanceService,
+) {
+  __governanceService = service;
+}

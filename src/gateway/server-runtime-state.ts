@@ -48,6 +48,7 @@ export async function createGatewayRuntimeState(params: {
   log: { info: (msg: string) => void; warn: (msg: string) => void };
   logHooks: ReturnType<typeof createSubsystemLogger>;
   logPlugins: ReturnType<typeof createSubsystemLogger>;
+  governanceService: import("../governance/service.js").GovernanceService;
 }): Promise<{
   canvasHost: CanvasHostHandler | null;
   httpServer: HttpServer;
@@ -85,6 +86,7 @@ export async function createGatewayRuntimeState(params: {
   ) => ChatRunEntry | undefined;
   chatAbortControllers: Map<string, ChatAbortControllerEntry>;
   toolEventRecipients: ReturnType<typeof createToolEventRecipientRegistry>;
+  governanceService: import("../governance/service.js").GovernanceService;
 }> {
   let canvasHost: CanvasHostHandler | null = null;
   if (params.canvasHostEnabled) {
@@ -206,5 +208,6 @@ export async function createGatewayRuntimeState(params: {
     removeChatRun,
     chatAbortControllers,
     toolEventRecipients,
+    governanceService: params.governanceService,
   };
 }
